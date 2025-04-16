@@ -1,0 +1,6 @@
+flask
+feedparser
+requests
+openai
+python-dotenv
+notion-client
