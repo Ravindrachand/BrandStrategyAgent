@@ -39,7 +39,8 @@ def analyze_article(article_text, title):
         model="gpt-4",
         messages=[
             {"role": "system", "content": "You are a senior marketing strategist. Summarize the article, extract 3 strategic insights, 2 brand actions, and 1 strategic framework."},
-            {"role": "user", "content": f"Article Title: {title}
+            {"role": "user", "content": f"Article Title: {title}"}
+
 
 Content:
 {article_text}"}
