@@ -10,16 +10,17 @@ import os
 
 app = Flask(__name__)
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST", "HEAD"])
 def trigger_agent():
-    if request.method == "GET":
-        return {"status": "✅ Server alive and healthy"}, 200
-    elif request.method == "POST":
+    if request.method == "POST":
         try:
             run_agent()
             return {"status": "✅ Agent ran successfully"}, 200
         except Exception as e:
             return {"status": "❌ Error", "message": str(e)}, 500
+    else:
+        # For GET or HEAD requests
+        return {"status": "✅ Agent is live"}, 200
 
 
 if __name__ == "__main__":
