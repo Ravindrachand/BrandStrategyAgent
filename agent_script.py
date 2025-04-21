@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
-NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
+NOTION_DATABASE_ID = os.getenv(1d51f5c9589280e8a8d9e1f83aed1517)
 
 # Clients
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
