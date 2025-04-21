@@ -36,22 +36,34 @@ def clean_date(entry):
 def generate_gpt_summary(title, summary):
     try:
         prompt = (
-            "You are a CMO-level brand strategist advising leading healthcare and diagnostic brands across India and APAC.\n\n"
-            "Given the following marketing article, extract insights that would be useful for:\n"
-            "- Patient-centric brand building\n"
+            "You are a Senior Partner at a global consulting firm, advising Fortune 500 healthcare and diagnostic companies.\n\n"
+            "Analyze the following article for strategic intelligence relevant to:\n"
+            "- Patient-centric brand positioning\n"
             "- Digital patient acquisition\n"
-            "- Regional/Tier 2 market expansion\n"
-            "- AI adoption in healthcare marketing\n\n"
-            "Generate:\n"
-            "### Brand Strategy Insights\n"
-            "- (3 bullet points with business impact)\n\n"
-            "### Recommended Brand Actions\n"
-            "- (2 bullet points that are realistic and specific)\n\n"
+            "- Regional expansion opportunities\n"
+            "- Emerging technologies in diagnostics and preventive care\n\n"
+            "**Your Output:**\n\n"
+            "### Strategic Insights\n"
+            "• (3 sharply-worded, high-impact insights)\n\n"
+            "### Recommended Actions\n"
+            "• (2 realistic, specific, and strategic actions)\n\n"
             "### Strategic Framework\n"
-            "Name: (real named framework)\n"
-            "How it applies: (1–2 line explanation)\n\n"
-            "Write in a concise, executive tone. Avoid generic fluff. Be sharp, business-oriented, and actionable.\n\n"
-            f"Title: {title}\n\nContent: {summary}")
+            "- Name a real-world framework (e.g., Ansoff Matrix, Porter's Five Forces)\n"
+            "- 1–2 lines on how it applies here\n\n"
+            "Stay sharply analytical, executive in tone, and avoid any general fluff. Write for CXO-level consumption.\n\n"
+            f"Title: {title}\n\nArticle Content: {summary}"
+        )
+
+        response = openai_client.chat.completions.create(
+            model="gpt-4-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.6
+        )
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        print(f"❌ OpenAI GPT error (summary): {e}")
+        return None
 
         response = openai_client.chat.completions.create(model="gpt-4-turbo",
                                                          messages=[{
