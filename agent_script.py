@@ -11,11 +11,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 
-# Clients
+# Initialize clients
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 notion = Client(auth=NOTION_TOKEN)
 
-# Feeds (Expanded list)
+# RSS Feeds
 rss_feeds = {
     "Marketing Dive": "https://www.marketingdive.com/feeds/news",
     "Branding Strategy Insider": "https://www.brandingstrategyinsider.com/feed",
@@ -37,7 +37,7 @@ def clean_date(entry):
         pass
     return datetime.utcnow().isoformat()
 
-def generate_gpt_analysis(title, summary):
+def generate_gpt_summary(title, summary):
     try:
         prompt = (
             "You are a Senior Partner at a global consulting firm, advising Fortune 500 healthcare and diagnostic companies.\n\n"
@@ -46,15 +46,15 @@ def generate_gpt_analysis(title, summary):
             "- Digital patient acquisition\n"
             "- Regional expansion opportunities\n"
             "- Emerging technologies in diagnostics and preventive care\n\n"
-            "**Your Output:**\n"
+            "**Your Output:**\n\n"
             "### Strategic Insights\n"
             "• (3 sharply-worded, high-impact insights)\n\n"
             "### Recommended Actions\n"
-            "• (2 realistic, specific, strategic actions)\n\n"
+            "• (2 realistic, specific, and strategic actions)\n\n"
             "### Strategic Framework\n"
-            "- Name a real-world strategic framework (e.g., Ansoff Matrix, Porter's Five Forces)\n"
-            "- 1–2 lines on how it applies\n\n"
-            "Stay sharply analytical, business-savvy, and executive-focused. Avoid generic fluff.\n\n"
+            "- Name a real-world framework (e.g., Ansoff Matrix, Porter's Five Forces)\n"
+            "- 1–2 lines on how it applies here\n\n"
+            "Stay sharply analytical, executive in tone, and avoid any general fluff. Write for CXO-level consumption.\n\n"
             f"Title: {title}\n\nArticle Content: {summary}"
         )
 
@@ -66,13 +66,13 @@ def generate_gpt_analysis(title, summary):
         return response.choices[0].message.content.strip()
 
     except Exception as e:
-        print(f"❌ OpenAI GPT error (analysis): {e}")
+        print(f"❌ OpenAI GPT error (summary): {e}")
         return None
 
 def generate_tags(title, summary):
     try:
         tag_prompt = (
-            f"Based on the following article, return 3 relevant tags as a comma-separated list focused on marketing, branding, healthcare, diagnostics, digital trends.\n\n"
+            f"Based on the following article, return 3 relevant tags as a comma-separated list. Tags should reflect industry themes (e.g., AI, Retail, CMO Moves, Diagnostics, India, Healthcare, APAC).\n\n"
             f"Title: {title}\n\nSummary: {summary}"
         )
 
@@ -91,37 +91,29 @@ def generate_tags(title, summary):
 def rate_insight_quality(gpt_output):
     try:
         score_prompt = (
-            f"Rate the strategic quality of the following insights on a scale of 1–10.\n\n{gpt_output}"
+            f"As a senior brand strategist, rate the strategic quality of the following insight report on a scale of 1 to 10. "
+            f"First line should be ONLY the numeric score, second line onwards should explain the rationale.\n\n"
+            f"Here is the report:\n\n{gpt_output}"
         )
-
-        rating = openai_client.chat.completions.create(
+        rating_response = openai_client.chat.completions.create(
             model="gpt-4-turbo",
             messages=[{"role": "user", "content": score_prompt}],
             temperature=0.3
         )
-        return rating.choices[0].message.content.strip()
+        rating_text = rating_response.choices[0].message.content.strip()
+
+        # Separate score and rationale
+        lines = rating_text.split('\n', 1)
+        score = float(lines[0].strip())
+        rationale = lines[1].strip() if len(lines) > 1 else ""
+
+        return score, rationale
+
     except Exception as e:
         print(f"⚠️ Insight scoring failed: {e}")
-        return None
+        return None, ""
 
-def extract_sections(gpt_response):
-    try:
-        sections = {"Insights": "", "Actions": "", "Framework": ""}
-        if "### Strategic Insights" in gpt_response:
-            parts = gpt_response.split("### ")
-            for part in parts:
-                if part.startswith("Strategic Insights"):
-                    sections["Insights"] = part.split("\n",1)[1].strip()
-                elif part.startswith("Recommended Actions"):
-                    sections["Actions"] = part.split("\n",1)[1].strip()
-                elif part.startswith("Strategic Framework"):
-                    sections["Framework"] = part.split("\n",1)[1].strip()
-        return sections
-    except Exception as e:
-        print(f"⚠️ Section parsing failed: {e}")
-        return {"Insights": "", "Actions": "", "Framework": ""}
-
-def push_to_notion(title, summary, insights, actions, framework, source, published_date, tags, score):
+def push_to_notion(title, summary, insights, source, published_date, tags, score, rationale):
     try:
         tag_objects = [{"name": tag} for tag in tags]
 
@@ -131,11 +123,11 @@ def push_to_notion(title, summary, insights, actions, framework, source, publish
                 "Title": {"title": [{"text": {"content": title}}]},
                 "Date": {"date": {"start": published_date}},
                 "Source": {"rich_text": [{"text": {"content": source}}]},
-                "Summary": {"rich_text": [{"text": {"content": insights[:1900]}}]},
-                "Recommend Action": {"rich_text": [{"text": {"content": actions[:1900]}}]},
-                "Strategic Framework": {"rich_text": [{"text": {"content": framework[:1900]}}]},
-                "Insight Score": {"number": float(score) if score else 0},
-                "Tags": {"multi_select": tag_objects}
+                "Summary": {"rich_text": [{"text": {"content": summary[:1900]}}]},
+                "Key Insights": {"rich_text": [{"text": {"content": insights[:1900]}}]},
+                "Tags": {"multi_select": tag_objects},
+                "Insight Score": {"number": score},
+                "Insight Score Rationale": {"rich_text": [{"text": {"content": rationale}}]}
             }
         )
         print(f"✅ Notion page created for: {title}")
@@ -153,16 +145,15 @@ def run_agent():
                 summary = entry.get("summary", entry.get("description", ""))
                 print(f"\n📝 Processing article: {title}")
 
-                gpt_response = generate_gpt_analysis(title, summary)
-                if gpt_response:
-                    print("🧠 GPT-4 Turbo analysis received.")
-                    sections = extract_sections(gpt_response)
-                    score = rate_insight_quality(gpt_response)
+                insights = generate_gpt_summary(title, summary)
+                if insights:
+                    print("🧠 GPT-4 Turbo response received.")
+                    score, rationale = rate_insight_quality(insights)
+                    print(f"📊 Insight Score: {score}")
                     published_date = clean_date(entry)
                     tags = generate_tags(title, summary)
-
-                    push_to_notion(title, summary, sections["Insights"], sections["Actions"], sections["Framework"],
-                                   source_name, published_date, tags, score)
+                    print(f"🏷️ Tags: {', '.join(tags) if tags else 'None'}")
+                    push_to_notion(title, summary, insights, source_name, published_date, tags, score, rationale)
                 else:
                     print("⚠️ Skipped due to GPT failure.")
         except Exception as e:
